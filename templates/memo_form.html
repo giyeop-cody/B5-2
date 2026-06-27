@@ -1,0 +1,30 @@
+{% extends "base.html" %}
+
+{% block title %}새 메모 작성 - 나의 메모 앱{% endblock %}
+
+{% block content %}
+<!-- [이유 및 목적] 폼 기반 새 메모 작성 양식 (POST /memos/new) -->
+<!-- [이점] 반드시 POST 방식으로 Form 데이터를 전송하며, 에러 발생 시 기존 입력값을 복원하고 안내 문구를 렌더링함(보너스 과제 2) -->
+<div class="memo-form">
+    <h2 style="margin-bottom: 1.5rem; color: #007bff;">새 메모 작성</h2>
+    
+    <form action="/memos/new" method="post">
+        <div class="form-group">
+            <label for="title">메모 제목</label>
+            <input type="text" id="title" name="title" placeholder="메모 제목을 입력하세요 (필수)" value="{{ title or '' }}">
+            <small style="color: #6c757d;">제목은 공백으로만 구성되거나 비어 있을 수 없습니다.</small>
+        </div>
+        
+        <div class="form-group">
+            <label for="content">메모 내용</label>
+            <textarea id="content" name="content" placeholder="메모 본문 내용을 입력하세요 (필수)">{{ content or '' }}</textarea>
+            <small style="color: #6c757d;">본문 내용은 비어 있을 수 없습니다.</small>
+        </div>
+        
+        <div class="flex-actions" style="justify-content: flex-end; border-top: 1px solid #e9ecef; padding-top: 1.5rem;">
+            <a href="/memos" class="btn btn-secondary">취소 및 목록으로</a>
+            <button type="submit" class="btn">저장하기</button>
+        </div>
+    </form>
+</div>
+{% endblock %}
