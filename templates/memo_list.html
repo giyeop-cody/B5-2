@@ -1,0 +1,44 @@
+{% extends "base.html" %}
+
+{% block title %}메모 목록 - 나의 메모 앱{% endblock %}
+
+{% block content %}
+<!-- [이유 및 목적] 메모 목록 화면 구성 및 검색 폼(보너스 과제 1) 추가 -->
+<!-- [이점] GET 파라미터를 활용한 쿼리 검색 기능과 메모 목록을 한 화면에서 직관적으로 렌더링함 -->
+<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem;">
+    <h2>메모 목록</h2>
+    <a href="/memos/new" class="btn">새 메모 작성</a>
+</div>
+
+<!-- 검색 양식 (GET /memos?search=키워드) -->
+<form action="/memos" method="get" style="margin-bottom: 2rem; display: flex; gap: 10px;">
+    <input type="text" name="search" placeholder="제목 검색 키워드 입력..." value="{{ search or '' }}" style="flex: 1; padding: 0.5rem; border: 1px solid #ced4da; border-radius: 4px; font-size: 1rem;">
+    <button type="submit" class="btn btn-secondary">검색</button>
+    {% if search %}
+    <a href="/memos" class="btn btn-secondary" style="background-color: #6c757d;">초기화</a>
+    {% endif %}
+</form>
+
+<div class="memo-list">
+    {% if memos %}
+        {% for memo in memos %}
+        <div style="border: 1px solid #e9ecef; padding: 1rem; margin-bottom: 1rem; border-radius: 6px; display: flex; justify-content: space-between; align-items: center; background-color: #ffffff; box-shadow: 0 1px 3px rgba(0,0,0,0.02);">
+            <div>
+                <h3 style="margin: 0 0 0.5rem 0; font-size: 1.25rem; color: #007bff;">
+                    <a href="/memos/{{ memo.id }}" style="text-decoration: none; color: inherit;">{{ memo.title }}</a>
+                </h3>
+                <small style="color: #6c757d;">작성일시: {{ memo.created_at.strftime('%Y-%m-%d %H:%M') if memo.created_at else '' }}</small>
+            </div>
+            <div>
+                <a href="/memos/{{ memo.id }}" class="btn btn-secondary" style="font-size: 0.9rem;">상세보기</a>
+            </div>
+        </div>
+        {% endfor %}
+    {% else %}
+        <div style="text-align: center; padding: 3rem 0; color: #6c757d; border: 1px dashed #ced4da; border-radius: 6px;">
+            <p>등록된 메모가 없거나 검색 결과가 없습니다.</p>
+            <a href="/memos/new" class="btn" style="margin-top: 1rem;">첫 메모 작성하기</a>
+        </div>
+    {% endif %}
+</div>
+{% endblock %}
