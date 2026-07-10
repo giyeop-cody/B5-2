@@ -14,7 +14,29 @@
 - **Template Engine (SSR):** Jinja2
 - **Data Validation:** Pydantic (v2)
 
-### 1.2. 요청 처리 흐름 (Request Flow)
+### 1.2. 엔드포인트 ↔ 구현 파일 매핑 및 기대 응답 코드
+
+각 기능이 어느 파일의 어떤 코드로 구현되어 있는지, 그리고 시나리오별 기대 HTTP 응답 코드입니다.
+
+| 엔드포인트 | 기능 | 라우터 함수 | 서비스 메서드 | 저장소 메서드 | 성공 응답 | 실패/예외 시 |
+|---|---|---|---|---|---|---|
+| `GET /` | 홈 | `read_home` | — | — | `200` HTML | — |
+| `GET /memos` | 목록·검색 | `read_memos` | `get_all_memos` | `get_all` | `200` HTML | — |
+| `GET /memos/new` | 등록 폼 | `new_memo_form` | — | — | `200` HTML | — |
+| `POST /memos/new` | 등록 | `create_memo` | `create_memo` | `create` | `303` → `/memos` | 빈 값: `200` 폼 재렌더링 + 안내 문구 |
+| `GET /memos/{id}` | 상세 | `read_memo_detail` | `get_memo_by_id` | `get_by_id` | `200` HTML | 미존재: `200` 목록 + 안내 문구 |
+| `GET /memos/{id}/edit` | 수정 폼 | `edit_memo_form` | `get_memo_by_id` | `get_by_id` | `200` HTML | 미존재: `200` 목록 + 안내 문구 |
+| `POST /memos/{id}/edit` | 수정 | `update_memo` | `update_memo` | `update` | `303` → `/memos/{id}` | 빈 값·미존재: `200` 폼 재렌더링 + 안내 문구 |
+| `POST /memos/{id}/delete` | 삭제 | `delete_memo` | `delete_memo` | `delete` | `303` → `/memos` | 미존재: `200` 목록 + 안내 문구 |
+
+- 파일 경로: 라우터 `routers/memo_router.py` · 서비스 `services/memo_service.py` · 저장소 `repositories/memo_repository.py`
+
+**오류 처리 정책 요약:**
+- **입력 검증 실패(빈 제목/내용):** 리다이렉트하지 않고 해당 폼을 `200`으로 재렌더링하며, 사용자가 입력했던 값과 함께 안내 문구를 표시합니다. (입력 유실 방지 — 검증 실패는 "완료되지 않은 작업"이므로 PRG 대상이 아님)
+- **미존재 데이터 접근:** 목록 화면에 "해당 데이터를 찾을 수 없습니다." 안내 문구를 렌더링합니다.
+- **DB 커밋 실패 등 시스템 예외:** Repository `_commit()`과 `get_db`에서 rollback 후 예외를 전파하며, FastAPI 기본 처리로 `500`이 반환됩니다.
+
+### 1.3. 요청 처리 흐름 (Request Flow)
 
 브라우저 요청 1건은 아래와 같이 단방향으로 흐릅니다. (평가 보완: 흐름 다이어그램)
 
@@ -26,7 +48,17 @@
 
 - **의존성 주입 체인:** `Depends(get_db)` → `MemoRepository(db)` → `MemoService(repository)` → 라우터 함수. 조립은 `get_memo_service()` 팩토리 한 곳에 응집되어 있습니다.
 
-### 1.3. 계층별 역할 분리 (Directory Structure)
+**실제 호출을 따라가는 예시 — `POST /memos/new` (제목="장보기", 내용="우유"):**
+```text
+1. Router  create_memo(title="장보기", content="우유")     # Form() 파라미터 수신
+2. Service create_memo() → 빈 값 검증 통과 → MemoCreate(title="장보기", content="우유") 생성
+3. Repo    create(memo_create) → Memo ORM 객체 생성 → db.add() → _commit() → db.refresh()
+4. Service MemoResponse.model_validate(created) → ServiceResult.success(dto) 반환
+5. Router  result.success == True → RedirectResponse("/memos", 303)
+6. 브라우저  303 수신 → GET /memos 재요청 → 목록에 "장보기" 표시
+```
+
+### 1.4. 계층별 역할 분리 (Directory Structure)
 ```text
 fastapi_crud_project/
 ├── main.py                 # FastAPI 앱 인스턴스 초기화 및 테이블 자동 생성
@@ -65,14 +97,31 @@ fastapi_crud_project/
 2. **PRG (Post-Redirect-Get) 패턴 적용:** 모든 POST 요청(등록/수정/삭제) 성공 후 `status_code=303`으로 리다이렉트하여, 브라우저 새로고침(F5) 시 양식이 중복 제출되거나 동일 데이터가 중복 생성되는 문제를 원천 차단했습니다.
 3. **DTO (Pydantic Schema) 디커플링:** ORM 모델 객체를 직접 뷰나 클라이언트로 반환하지 않고 DTO로 변환하여 전달함으로써 데이터 보호 및 응답 무결성을 확보했습니다.
    - **폼 → Pydantic 변환 흐름:** 브라우저 폼 데이터는 라우터에서 `Form()` 파라미터(`title`, `content`)로 수신 → Service가 빈 값 검증 후 `MemoCreate`/`MemoUpdate`(Pydantic)로 캡슐화 → Repository가 ORM 객체로 영속화 → 응답은 `MemoResponse.model_validate()`로 다시 DTO 변환됩니다. 검증 실패 시 저장 없이 `ServiceResult.fail(에러 메시지)`가 반환되어 폼 화면에 기존 입력값과 함께 안내 문구가 재렌더링됩니다.
+   - **(확장 안내) 파일 업로드 등 복잡한 폼:** 현재는 텍스트 필드만 사용하므로 `application/x-www-form-urlencoded`로 충분합니다. 향후 파일 업로드가 필요하면 이미 설치된 `python-multipart` 기반으로 라우터 파라미터에 `file: UploadFile = File(...)`을 추가하고 템플릿 폼에 `enctype="multipart/form-data"`를 지정하면 됩니다. (본 미션 범위 외)
 4. **GET/POST 역할 규칙 및 PRG 상세 정책:**
-   - **메서드 규칙:** `GET`은 상태를 변경하지 않는 조회(홈/목록/상세/폼 렌더링) 전용, `POST`는 상태를 변경하는 작업(등록/수정/삭제) 전용입니다. HTML Form이 GET/POST만 지원하므로 삭제도 POST Form으로 처리합니다. (REST API 전환 시 메서드 매핑은 `docs/ssr_to_rest_migration.md` 참고)
+   - **메서드 규칙:** `GET`은 상태를 변경하지 않는 조회(홈/목록/상세/폼 렌더링) 전용, `POST`는 상태를 변경하는 작업(등록/수정/삭제) 전용입니다. HTML Form이 GET/POST만 지원하므로 삭제도 POST Form으로 처리합니다.
+   - **REST 전환 시 메서드 매핑 계획:** 수정은 `PUT/PATCH /api/memos/{id}`, 삭제는 `DELETE /api/memos/{id}`(→ `204 No Content`), 등록은 `POST /api/memos`(→ `201 Created`)로 이관합니다. 상세 매핑표와 전환 체크리스트는 `docs/ssr_to_rest_migration.md` 참고.
    - **리다이렉트 타겟 일관성:** 등록 성공 → 목록(`/memos`), 수정 성공 → 해당 상세(`/memos/{id}`), 삭제 성공 → 목록(`/memos`)으로 통일했으며, 모든 POST 핸들러가 동일하게 `status_code=303`을 사용합니다.
-   - **브라우저(클라이언트) 동작:** `303 See Other`를 받은 브라우저는 반드시 GET으로 Location에 재요청하므로, 이후 새로고침(F5)은 마지막 GET만 반복합니다. (모든 모던 브라우저에서 동일하게 동작하며, 302와 달리 재요청 메서드가 GET으로 강제되는 것이 303을 선택한 이유입니다.)
+   - **브라우저(클라이언트) 동작:** `303 See Other`를 받은 브라우저는 반드시 GET으로 Location에 재요청하므로, 이후 새로고침(F5)은 마지막 GET만 반복합니다.
+   - **303 vs 302 비교표:**
+
+     | 구분 | 302 Found | 303 See Other |
+     |---|---|---|
+     | 재요청 메서드 | 명세상 원래 메서드 유지 (실제 브라우저는 관례적으로 GET 변환) | **명세상 GET으로 강제** |
+     | POST 후 사용 시 | 브라우저 구현에 의존 → 동작 보장 안 됨 | 모든 표준 준수 브라우저에서 동일하게 동작 |
+     | PRG 적합성 | 관례에 기대는 모호함 존재 | **PRG 목적에 정확히 부합 (본 프로젝트 채택)** |
+     | 호환성 예외 | 매우 오래된 비표준 클라이언트에서 POST 재전송 가능성 | HTTP/1.1(1999) 이후 전 브라우저 지원 — 실질적 예외 없음 |
 5. **트랜잭션 경계 및 예외 처리 정책:**
    - **세션 라이프사이클:** `Depends(get_db)`에 의해 'HTTP 요청 1건 = DB 세션 1개'가 보장되며, 요청 종료 시 `finally`에서 세션이 닫힙니다.
    - **트랜잭션 경계는 Repository:** 커밋은 Repository의 작업 단위(create/update/delete)별로 수행하고, 커밋 실패 시 내부 `_commit()` 헬퍼가 즉시 `rollback`합니다. Service는 세션/트랜잭션의 존재를 알지 못하며(의존성 규칙), 검증과 비즈니스 판단만 담당합니다. 이것이 서비스와 저장소 간 책임의 경계 사례입니다.
    - **레이어 미분리 시 문제 예시:** 만약 라우터 함수 안에서 `db.query(...)`와 빈 값 검증을 함께 수행했다면, 검색 조건 하나를 바꿀 때도 HTTP 처리 코드를 건드려야 하고, DB 없이 검증 로직만 단위 테스트하는 것이 불가능해집니다.
+   - **코드 리뷰 체크리스트 (레이어 침범 자동 검출용):**
+     - [ ] 라우터에 `db.query`/`db.add`/`db.commit` 등 DB 조작 코드가 없는가?
+     - [ ] 라우터에 빈 값 검증 등 비즈니스 규칙이 없는가? (검증은 Service)
+     - [ ] Service가 `Session`/`Request` 등 프레임워크 객체를 직접 알지 않는가?
+     - [ ] Repository가 HTML 렌더링·리다이렉트 등 표현 계층을 알지 않는가?
+     - [ ] ORM 모델이 라우터/템플릿에 직접 반환되지 않고 DTO로 변환되는가?
+     - 간단 자동 점검: `grep -n "db\." routers/*.py` 결과가 비어 있어야 합니다.
 6. **존재하지 않는 데이터 처리 정책:** 미존재 데이터 조회/수정/삭제 시 별도 404 페이지 대신 **목록 화면에 "해당 데이터를 찾을 수 없습니다." 안내 문구를 렌더링**하는 방식을 채택했습니다. SSR 학습 미션 특성상 사용자가 자연스럽게 다음 행동(목록 탐색)으로 이어지도록 하기 위함이며, REST 전환 시에는 `404 + JSON` 응답으로 대체합니다.
 7. **보너스 과제 완벽 통합:**
    - **제목 검색:** 쿼리 파라미터(`?search=`)를 활용하여 Repository에서 SQLAlchemy `like` 필터링 수행.
@@ -130,12 +179,53 @@ python3 -m venv venv && source venv/bin/activate \
 curl -s -o /dev/null -w "%{http_code}\n" http://localhost:8000/   # 200이면 정상
 ```
 
+**실행 성공 시 실제 출력 스냅샷:**
+```text
+# 터미널 1 — 서버 기동 로그
+$ uvicorn main:app --reload --host 0.0.0.0 --port 8000
+INFO:     Uvicorn running on http://0.0.0.0:8000 (Press CTRL+C to quit)
+INFO:     Started server process [928]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+INFO:     127.0.0.1:47310 - "GET / HTTP/1.1" 200 OK
+
+# 터미널 2 — 헬스체크 결과
+$ curl -s -o /dev/null -w "%{http_code}\n" http://localhost:8000/
+200
+```
+
+**`database.db` 생성 확인:** 서버 최초 기동(또는 첫 요청) 직후 프로젝트 루트에 DB 파일이 생성됩니다.
+```bash
+ls -l database.db          # 파일 존재 확인
+# 저장된 데이터 직접 확인 (표준 sqlite3 CLI 또는 DB Browser for SQLite)
+sqlite3 database.db "SELECT id, title FROM memos;"
+```
+
 ### (선택) DB 파일 위치 변경 — 환경변수 설정
 DB 접속 URL은 환경변수 `MEMO_DATABASE_URL`로 외부화되어 있습니다. 미설정 시 프로젝트 루트의 `database.db`를 사용합니다.
 ```bash
 # 예: 다른 경로의 SQLite 파일 사용
 MEMO_DATABASE_URL="sqlite:////tmp/my_memo.db" uvicorn main:app --port 8000
 ```
+
+### (참고) PostgreSQL 등 다른 DB로 전환 시
+> ⚠️ 본 미션은 필수 5개 패키지 외 외부 라이브러리 금지 제약이 있어 **미션 범위에서는 SQLite만 사용**합니다. 아래는 미션 이후 확장 시의 안내입니다.
+
+| DB | 추가 드라이버 패키지 | `MEMO_DATABASE_URL` 예시 |
+|---|---|---|
+| PostgreSQL | `psycopg2-binary` | `postgresql+psycopg2://user:pass@localhost:5432/memodb` |
+| MySQL | `pymysql` | `mysql+pymysql://user:pass@localhost:3306/memodb` |
+
+- `database.py`는 SQLite일 때만 `check_same_thread` 옵션을 적용하도록 조건 처리되어 있어, URL만 바꾸면 코드 수정 없이 전환됩니다.
+- 운영 전환 시에는 `create_all` 대신 마이그레이션 도구(Alembic) 도입을 권장합니다.
+
+### 사전 점검 체크리스트 (설치 실패 대비)
+```bash
+python3 --version    # 3.10 이상인지 확인
+pip --version        # venv 활성화 후 venv 내부 pip인지 확인
+pip install --upgrade pip   # 설치 오류 시 pip 업그레이드 후 재시도
+```
+- 그래도 실패하면: 네트워크/프록시 환경 확인 → `pip install -r requirements.txt -v`로 상세 로그 확인
 
 ---
 

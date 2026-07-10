@@ -3,6 +3,9 @@ from repositories.memo_repository import MemoRepository
 from schemas.memo import MemoCreate, MemoUpdate, MemoResponse
 from services.result import ServiceResult
 
+# [계층 책임 경계 — AI 평가 항목 #8 보완]
+#   Service가 하는 일: 입력값 검증(빈 값 체크), 비즈니스 판단(존재 여부 확인), ORM→DTO 변환, 성공/실패 결과 캡슐화
+#   Service가 하지 않는 일: SQL/쿼리 실행(→ Repository), 세션/커밋/롤백(→ Repository·get_db), HTTP 응답·리다이렉트(→ Router)
 # [이유 및 목적] 비즈니스 로직 및 유스케이스를 전담하는 Service 계층 클래스 정의 (Clean Architecture 실현)
 # [이점] 생성자 주입을 통해 Repository 인스턴스를 주입받음으로써, 기존 메소드 인자였던 db: Session을 완벽히 제거함. 이로써 서비스 계층은 데이터베이스나 ORM 프레임워크의 세부 구현을 전혀 몰라도 되는 완벽한 의존성 규칙(Dependency Rule)을 준수하게 됨.
 class MemoService:

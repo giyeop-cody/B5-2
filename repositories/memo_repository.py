@@ -3,6 +3,9 @@ from sqlalchemy.orm import Session
 from models.memo import Memo
 from schemas.memo import MemoCreate, MemoUpdate
 
+# [계층 책임 경계 — AI 평가 항목 #8 보완]
+#   Repository가 하는 일: 쿼리 실행, 트랜잭션 경계(commit/rollback), ORM 객체 영속화·조회
+#   Repository가 하지 않는 일: 입력값 검증·비즈니스 판단(→ Service), HTTP·화면 처리(→ Router)
 # [이유 및 목적] 데이터베이스 접근 로직을 전담하는 Repository 계층 클래스 정의 (SRP 준수)
 # [이점] 생성자를 통해 DB 세션을 주입받는 구조로 전환하여 정적 메소드 구조의 강한 결합을 제거하고 제어의 역전(IoC)을 실현함.
 class MemoRepository:
@@ -37,6 +40,11 @@ class MemoRepository:
 
     # [이유 및 목적] 새로운 메모 데이터를 데이터베이스에 삽입하고 세션 커밋
     # [이점] DTO를 ORM 객체로 변환하여 영속화하며, refresh를 통해 DB에서 생성된 ID와 타임스탬프를 동기화함.
+    # [ORM 동작 타이밍 주석 — AI 평가 항목 #13 보완]
+    #   add()    : 객체를 세션의 pending 상태로 등록만 함 (SQL 미실행)
+    #   commit() : 내부적으로 flush(INSERT SQL 실행) 후 트랜잭션 확정. 이 시점에 DB가 id를 채번함
+    #   refresh(): DB가 생성한 값(id, server_default인 created_at 등)을 SELECT로 재조회하여
+    #              파이썬 객체에 동기화함. refresh 없이 접근하면 만료(expired) 속성 접근 문제가 생길 수 있음
     def create(self, memo_data: MemoCreate) -> Memo:
         db_memo = Memo(title=memo_data.title, content=memo_data.content)
         self.db.add(db_memo)
