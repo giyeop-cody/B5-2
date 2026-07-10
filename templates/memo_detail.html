@@ -19,7 +19,9 @@
         <a href="/memos" class="btn btn-secondary">← 목록으로 돌아가기</a>
         <div class="flex-actions" style="margin: 0;">
             <a href="/memos/{{ memo.id }}/edit" class="btn">수정하기</a>
-            <!-- 삭제는 반드시 POST 방식으로 동작하도록 Form 구조 채택 (PRG 패턴 완결성) -->
+            <!-- method="post" 의도: 삭제는 상태 변경 작업이므로 링크(GET)가 아닌 POST Form 사용.
+                 GET 삭제는 크롤러/미리보기 접근만으로 데이터가 지워지는 사고를 유발할 수 있음.
+                 HTML Form은 DELETE 메서드를 지원하지 않으므로 POST로 처리 (REST 전환 시 DELETE로 매핑) -->
             <form action="/memos/{{ memo.id }}/delete" method="post" onsubmit="return confirm('정말 이 메모를 삭제하시겠습니까?');" style="margin: 0;">
                 <button type="submit" class="btn btn-danger">삭제하기</button>
             </form>

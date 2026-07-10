@@ -151,7 +151,45 @@ alembic upgrade head
 
 ---
 
-## 4. 주의 사항
+## 4. 관계 추가 체크리스트 (수정 파일 목록)
+
+작업 순서대로 체크하며 진행하세요.
+
+- [ ] **1. `models/comment.py`** (신규) — `ForeignKey("memos.id")` 컬럼 + `relationship("Memo", back_populates="comments")` 정의
+- [ ] **2. `models/memo.py`** (수정) — `comments = relationship("Comment", back_populates="memo", cascade="all, delete-orphan")` 추가
+- [ ] **3. `main.py`** (수정) — `import models.comment` 추가 (`create_all`이 새 테이블 인식)
+- [ ] **4. `schemas/comment.py`** (신규) — `CommentCreate` / `CommentResponse` DTO 정의
+- [ ] **5. `repositories/comment_repository.py`** (신규) — CRUD + 조인 조회 시 `selectinload` 적용
+- [ ] **6. `services/`** (수정/신규) — 댓글 유스케이스 (검증 + DTO 변환)
+- [ ] **7. `routers/`** (수정) — `POST /memos/{id}/comments` 등 자식 리소스 엔드포인트 (PRG 303 동일 적용)
+- [ ] **8. `templates/memo_detail.html`** (수정) — 댓글 목록/작성 폼 렌더링
+- [ ] **9. DB 반영** — §3의 방법 A(재생성)/B(수동 SQL)/C(Alembic) 중 택 1
+- [ ] **10. 검증** — 삭제 정책(cascade) 동작 및 지연 로딩 `DetachedInstanceError` 여부 테스트
+
+### 관계 필드 핵심 코드 스니펫 요약
+
+```python
+# ── 자식(N) 쪽: models/comment.py ──────────────────────────────
+memo_id = Column(Integer, ForeignKey("memos.id", ondelete="CASCADE"), nullable=False)
+memo = relationship("Memo", back_populates="comments")     # comment.memo 로 부모 접근
+
+# ── 부모(1) 쪽: models/memo.py ─────────────────────────────────
+comments = relationship(                                    # memo.comments 로 자식 목록 접근
+    "Comment",
+    back_populates="memo",
+    cascade="all, delete-orphan",                           # 메모 삭제 시 댓글 자동 삭제
+)
+
+# ── 조회(N+1 방지): repositories/ ──────────────────────────────
+from sqlalchemy.orm import selectinload
+memo = (db.query(Memo)
+          .options(selectinload(Memo.comments))             # IN 쿼리 1번으로 일괄 로딩
+          .filter(Memo.id == memo_id).first())
+```
+
+---
+
+## 5. 주의 사항
 
 - **삭제 정책 결정:** 부모 삭제 시 자식 처리(CASCADE / RESTRICT / SET NULL)를 반드시 먼저 결정합니다. SQLite에서는 `PRAGMA foreign_keys=ON` 활성화가 필요할 수 있습니다.
 - **지연 로딩(Lazy Loading) 함정:** 세션이 닫힌 뒤 템플릿에서 `memo.comments`에 접근하면 `DetachedInstanceError`가 발생합니다. Repository에서 즉시 로딩하거나 DTO 변환을 세션 범위 내에서 완료해야 합니다.
