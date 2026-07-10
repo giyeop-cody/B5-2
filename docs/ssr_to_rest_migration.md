@@ -86,3 +86,29 @@ async def create_memo(payload: MemoCreate, service: MemoService = Depends(get_me
 1. 기존 SSR 라우터를 유지한 채 `routers/api/` 아래에 `/api/memos` REST 라우터를 **병행 추가**
 2. Service/Repository를 공유하므로 로직 중복 없음
 3. 프론트엔드 개발 완료 후 SSR 라우터와 `templates/` 제거, `jinja2` 의존성 정리
+
+---
+
+## 6. 전환 체크리스트 (테스트·호환성)
+
+### 6.1. 엔드포인트/계약(Contract)
+- [ ] 모든 SSR 화면 흐름에 대응하는 REST 엔드포인트가 정의되었는가? (§3 매핑표 기준)
+- [ ] `response_model`(Pydantic)로 응답 스키마가 명세되고 `/docs`(Swagger)에 노출되는가?
+- [ ] 상태 코드 계약 준수: 등록 `201`, 삭제 `204`, 미존재 `404`, 검증 실패 `422`
+- [ ] 페이지네이션/정렬 파라미터 정책이 정의되었는가? (SSR에는 없던 신규 관심사)
+
+### 6.2. 보안
+- [ ] **CORS:** 프론트 오리진(예: `http://localhost:3000`)을 `CORSMiddleware`의 `allow_origins`에 등록했는가? (와일드카드 `*`와 credentials 동시 사용 금지)
+- [ ] **CSRF:** 쿠키 기반 인증을 유지한다면 CSRF 토큰 또는 `SameSite` 쿠키 정책이 필요. 토큰(JWT) 헤더 인증으로 가면 CSRF 부담이 줄어드는 대신 XSS 대비 토큰 저장 위치(메모리 권장) 검토
+- [ ] 에러 응답에 내부 구현 정보(스택 트레이스, SQL)가 노출되지 않는가?
+
+### 6.3. 테스트
+- [ ] 기존 `test_mock_driver.py`(Service/Repository 단위)는 **수정 없이 그대로 통과**해야 함 — 레이어 분리 덕분에 전환의 회귀 기준선 역할
+- [ ] `test_integration.py`를 REST 버전으로 복제: HTML 파싱 대신 JSON 응답·상태 코드(201/204/404/422) 검증으로 교체
+- [ ] PRG 검증(303) 테스트는 REST에서는 제거하고, 프론트 라우팅 테스트로 대체
+- [ ] SSR·REST 병행 기간에는 두 테스트를 모두 CI에서 실행
+
+### 6.4. 정리 단계
+- [ ] 프론트 전환 완료 후 SSR 라우터·`templates/` 제거
+- [ ] `jinja2`, (파일 업로드 미사용 시) `python-multipart` 의존성 제거 및 `requirements.txt` 갱신
+- [ ] README의 실행법·아키텍처 다이어그램을 REST 기준으로 갱신
