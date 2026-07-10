@@ -25,12 +25,22 @@ class MemoRepository:
     def get_by_id(self, memo_id: int) -> Optional[Memo]:
         return self.db.query(Memo).filter(Memo.id == memo_id).first()
 
+    # [이유 및 목적] 커밋 실패 시 세션을 롤백하는 공통 헬퍼 (AI 평가 항목 #9 보완)
+    # [이점] 커밋 도중 예외(무결성 위반, 디스크 오류 등)가 발생하면 즉시 rollback하여
+    #        세션이 오염된 상태로 남지 않도록 보장하고, 트랜잭션 경계를 Repository 한 곳에 응집시킴.
+    def _commit(self) -> None:
+        try:
+            self.db.commit()
+        except Exception:
+            self.db.rollback()
+            raise
+
     # [이유 및 목적] 새로운 메모 데이터를 데이터베이스에 삽입하고 세션 커밋
     # [이점] DTO를 ORM 객체로 변환하여 영속화하며, refresh를 통해 DB에서 생성된 ID와 타임스탬프를 동기화함.
     def create(self, memo_data: MemoCreate) -> Memo:
         db_memo = Memo(title=memo_data.title, content=memo_data.content)
         self.db.add(db_memo)
-        self.db.commit()
+        self._commit()
         self.db.refresh(db_memo)
         return db_memo
 
@@ -41,7 +51,7 @@ class MemoRepository:
         if db_memo:
             db_memo.title = memo_data.title
             db_memo.content = memo_data.content
-            self.db.commit()
+            self._commit()
             self.db.refresh(db_memo)
             return db_memo
         return None
@@ -52,6 +62,6 @@ class MemoRepository:
         db_memo = self.get_by_id(memo_id)
         if db_memo:
             self.db.delete(db_memo)
-            self.db.commit()
+            self._commit()
             return True
         return False
