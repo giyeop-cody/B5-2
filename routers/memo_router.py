@@ -30,7 +30,7 @@ def get_memo_service(db: Session = Depends(get_db)) -> MemoService:
 # [이점] 앱의 목적을 설명하는 문장과 주요 기능(목록, 등록)으로 이동할 수 있는 링크를 제공하여 웹 서비스의 진입점 역할을 함.
 @router.get("/", response_class=HTMLResponse)
 async def read_home(request: Request):
-    return templates.TemplateResponse("home.html", {"request": request})
+    return templates.TemplateResponse(request, "home.html")
 
 
 # [이유 및 목적] 메모 목록 조회 및 검색 엔드포인트 (GET /memos)
@@ -44,8 +44,9 @@ async def read_memos(
 ):
     memos = service.get_all_memos(search=search)
     return templates.TemplateResponse(
+        request,
         "memo_list.html",
-        {"request": request, "memos": memos, "search": search, "error_msg": error_msg}
+        {"memos": memos, "search": search, "error_msg": error_msg}
     )
 
 
@@ -53,7 +54,7 @@ async def read_memos(
 # [이점] 사용자에게 새로운 메모를 입력할 수 있는 HTML 폼 양식을 안전하게 제공함.
 @router.get("/memos/new", response_class=HTMLResponse)
 async def new_memo_form(request: Request):
-    return templates.TemplateResponse("memo_form.html", {"request": request})
+    return templates.TemplateResponse(request, "memo_form.html")
 
 
 # [이유 및 목적] 폼 기반 새 메모 등록 처리 엔드포인트 (POST /memos/new)
@@ -68,8 +69,9 @@ async def create_memo(
     result = service.create_memo(title=title, content=content)
     if not result.success:
         return templates.TemplateResponse(
+            request,
             "memo_form.html",
-            {"request": request, "error_msg": result.error, "title": title, "content": content}
+            {"error_msg": result.error, "title": title, "content": content}
         )
     # PRG 패턴 적용: 성공 시 목록 화면으로 303 Redirect
     return RedirectResponse(url="/memos", status_code=303)
@@ -83,14 +85,11 @@ async def read_memo_detail(request: Request, memo_id: int, service: MemoService 
     if not memo:
         memos = service.get_all_memos()
         return templates.TemplateResponse(
+            request,
             "memo_list.html",
-            {
-                "request": request,
-                "memos": memos,
-                "error_msg": "해당 데이터를 찾을 수 없습니다."
-            }
+            {"memos": memos, "error_msg": "해당 데이터를 찾을 수 없습니다."}
         )
-    return templates.TemplateResponse("memo_detail.html", {"request": request, "memo": memo})
+    return templates.TemplateResponse(request, "memo_detail.html", {"memo": memo})
 
 
 # [이유 및 목적] 기존 메모 수정 폼 렌더링 엔드포인트 (GET /memos/{memo_id}/edit)
@@ -101,10 +100,11 @@ async def edit_memo_form(request: Request, memo_id: int, service: MemoService = 
     if not memo:
         memos = service.get_all_memos()
         return templates.TemplateResponse(
+            request,
             "memo_list.html",
-            {"request": request, "memos": memos, "error_msg": "해당 데이터를 찾을 수 없습니다."}
+            {"memos": memos, "error_msg": "해당 데이터를 찾을 수 없습니다."}
         )
-    return templates.TemplateResponse("memo_edit.html", {"request": request, "memo": memo})
+    return templates.TemplateResponse(request, "memo_edit.html", {"memo": memo})
 
 
 # [이유 및 목적] 폼 기반 기존 메모 수정 처리 엔드포인트 (POST /memos/{memo_id}/edit)
@@ -121,8 +121,9 @@ async def update_memo(
     if not result.success:
         temp_memo = {"id": memo_id, "title": title, "content": content}
         return templates.TemplateResponse(
+            request,
             "memo_edit.html",
-            {"request": request, "memo": temp_memo, "error_msg": result.error}
+            {"memo": temp_memo, "error_msg": result.error}
         )
     # PRG 패턴 적용: 성공 시 상세 화면으로 303 Redirect
     return RedirectResponse(url=f"/memos/{memo_id}", status_code=303)
@@ -136,7 +137,8 @@ async def delete_memo(request: Request, memo_id: int, service: MemoService = Dep
     if not success:
         memos = service.get_all_memos()
         return templates.TemplateResponse(
+            request,
             "memo_list.html",
-            {"request": request, "memos": memos, "error_msg": "해당 데이터를 찾을 수 없습니다."}
+            {"memos": memos, "error_msg": "해당 데이터를 찾을 수 없습니다."}
         )
     return RedirectResponse(url="/memos", status_code=303)
