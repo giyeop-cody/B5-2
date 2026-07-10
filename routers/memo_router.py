@@ -87,10 +87,7 @@ async def read_memo_detail(request: Request, memo_id: int, service: MemoService 
         return templates.TemplateResponse(
             request,
             "memo_list.html",
-            {
-                "memos": memos,
-                "error_msg": "해당 데이터를 찾을 수 없습니다."
-            }
+            {"memos": memos, "error_msg": "해당 데이터를 찾을 수 없습니다."}
         )
     return templates.TemplateResponse(request, "memo_detail.html", {"memo": memo})
 
