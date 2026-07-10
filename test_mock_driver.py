@@ -96,6 +96,42 @@ def run_tests():
         assert not_found is None
         print("  ✔️ MemoService.get_memo_by_id (존재하지 않는 ID 조회 시 None 반환) 정상 동작 확인\n")
 
+        # ---------------------------------------------------------
+        # [테스트 3] 트랜잭션 커밋/롤백 시나리오 검증 (AI 평가 항목 #9 보완)
+        # ---------------------------------------------------------
+        print("[TEST 3] 트랜잭션 커밋/롤백 시나리오 검증...")
+
+        # 1. 커밋 실패 시 rollback 동작 검증: commit을 강제로 실패시키는 Mock 세션 주입
+        class FailingCommitSession:
+            """commit 호출 시 무조건 예외를 던지고, rollback 호출 여부를 기록하는 Mock 세션"""
+            def __init__(self, real_db):
+                self._real = real_db
+                self.rolled_back = False
+            def add(self, obj): self._real.add(obj)
+            def commit(self): raise RuntimeError("모의 커밋 실패 (디스크 오류 가정)")
+            def rollback(self):
+                self.rolled_back = True
+                self._real.rollback()
+            def __getattr__(self, name): return getattr(self._real, name)
+
+        failing_db = FailingCommitSession(db)
+        failing_repo = MemoRepository(failing_db)
+        try:
+            failing_repo.create(MemoCreate(title="커밋 실패 메모", content="저장되면 안 됨"))
+            assert False, "커밋 실패 시 예외가 전파되어야 합니다"
+        except RuntimeError:
+            pass
+        assert failing_db.rolled_back is True, "커밋 실패 시 _commit()이 rollback을 호출해야 합니다"
+        print("  ✔️ MemoRepository._commit (커밋 실패 시 rollback 호출 및 예외 전파) 정상 동작 확인")
+
+        # 2. rollback 이후 세션 재사용 가능 검증: 오염 없이 정상 커밋이 이어지는지 확인
+        recovered = repo.create(MemoCreate(title="롤백 후 정상 메모", content="세션 복구 확인"))
+        assert recovered.id is not None
+        assert repo.get_by_id(recovered.id).title == "롤백 후 정상 메모"
+        # 실패했던 데이터는 저장되지 않았어야 함
+        assert len(repo.get_all(search="커밋 실패")) == 0
+        print("  ✔️ rollback 이후 세션 정상 복구 및 실패 데이터 미저장 확인\n")
+
         print("=== [SUCCESS] 모든 리팩토링 및 Mock 드라이버 검증 테스트를 성공적으로 통과했습니다! ===")
 
     except AssertionError as e:
