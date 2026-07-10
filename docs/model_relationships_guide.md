@@ -111,7 +111,47 @@ def get_memo_with_comments(self, memo_id: int):
 
 ---
 
-## 3. 주의 사항
+## 3. 기존 DB에 반영하기 (마이그레이션 단계)
+
+`Base.metadata.create_all()`은 **없는 테이블만 새로 만들 뿐, 기존 테이블 구조는 변경하지 못합니다.** 이미 데이터가 있는 `database.db`에 관계를 반영하는 방법은 두 가지입니다.
+
+### 방법 A: 학습/개발 단계 — DB 재생성 (가장 간단)
+
+```bash
+# 1. 서버 중지 후 기존 DB 삭제 (데이터가 사라져도 되는 경우만!)
+rm database.db
+# 2. 서버 재기동 → create_all이 memos + comments 테이블을 새로 생성
+uvicorn main:app --reload
+```
+
+### 방법 B: 데이터 보존 — 수동 마이그레이션 SQL
+
+```bash
+sqlite3 database.db <<'SQL'
+-- 새 자식 테이블 생성 (models/comment.py 정의와 일치해야 함)
+CREATE TABLE comments (
+    id INTEGER PRIMARY KEY,
+    content VARCHAR NOT NULL,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    memo_id INTEGER NOT NULL REFERENCES memos(id) ON DELETE CASCADE
+);
+CREATE INDEX ix_comments_id ON comments (id);
+SQL
+```
+
+### 방법 C: 운영 확장 — Alembic 도입 (미션 이후)
+
+```bash
+pip install alembic            # ⚠️ 미션 제약(외부 라이브러리 금지) 해제 이후에만
+alembic init migrations
+# alembic/env.py에 target_metadata = Base.metadata 연결 후
+alembic revision --autogenerate -m "add comments table"
+alembic upgrade head
+```
+
+---
+
+## 4. 주의 사항
 
 - **삭제 정책 결정:** 부모 삭제 시 자식 처리(CASCADE / RESTRICT / SET NULL)를 반드시 먼저 결정합니다. SQLite에서는 `PRAGMA foreign_keys=ON` 활성화가 필요할 수 있습니다.
 - **지연 로딩(Lazy Loading) 함정:** 세션이 닫힌 뒤 템플릿에서 `memo.comments`에 접근하면 `DetachedInstanceError`가 발생합니다. Repository에서 즉시 로딩하거나 DTO 변환을 세션 범위 내에서 완료해야 합니다.
