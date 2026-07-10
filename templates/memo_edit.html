@@ -8,6 +8,7 @@
 <div class="memo-edit">
     <h2 style="margin-bottom: 1.5rem; color: #007bff;">메모 수정</h2>
     
+    <!-- method="post": 수정도 상태 변경 작업이므로 POST 사용 (HTML Form은 PUT 미지원 → REST 전환 시 PUT/PATCH로 매핑, docs/ssr_to_rest_migration.md 참고) -->
     <form action="/memos/{{ memo.id }}/edit" method="post">
         <div class="form-group">
             <label for="title">메모 제목</label>
