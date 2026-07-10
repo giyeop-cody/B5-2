@@ -112,3 +112,32 @@ async def create_memo(payload: MemoCreate, service: MemoService = Depends(get_me
 - [ ] 프론트 전환 완료 후 SSR 라우터·`templates/` 제거
 - [ ] `jinja2`, (파일 업로드 미사용 시) `python-multipart` 의존성 제거 및 `requirements.txt` 갱신
 - [ ] README의 실행법·아키텍처 다이어그램을 REST 기준으로 갱신
+
+---
+
+## 7. 순서별 마이그레이션 체크리스트 (실행 순서 그대로)
+
+§6이 관점별 점검표라면, 이 절은 **실제 작업 순서**대로 따라가는 단계별 체크리스트입니다.
+
+### Phase 1 — API 병행 추가 (SSR 무중단)
+- [ ] 1. `routers/api/memo_api_router.py` 생성 — `/api/memos` CRUD 엔드포인트 (Service/Repository 재사용)
+- [ ] 2. 응답 계약 확정 — `response_model=MemoResponse`, 상태 코드 매핑: 등록 `201` / 수정 `200` / 삭제 `204` / 미존재 `404` / 검증 실패 `422`
+- [ ] 3. 에러 응답 형식 통일 — `HTTPException(detail=...)` JSON 규격 (`{"detail": "..."}`), 내부 정보(SQL/스택) 미노출 확인
+- [ ] 4. `main.py`에 API 라우터 등록 → `/docs`(Swagger)에서 계약 노출 확인
+
+### Phase 2 — 프론트엔드 연동
+- [ ] 5. CORS 설정 — `CORSMiddleware`에 프론트 오리진 등록 (와일드카드 `*` + credentials 동시 사용 금지)
+- [ ] 6. 프론트 라우팅으로 화면 전환 대체 — PRG(303)는 API에서 제거, 성공 시 상태 코드만 반환
+- [ ] 7. 폼 → JSON 전환 — `Form()` 파라미터 대신 Pydantic Body 수신, 프론트는 `fetch`/`axios`로 JSON 전송
+- [ ] 8. 인증 필요 시 토큰 방식(JWT 등) 검토 — 쿠키 유지 시 CSRF(SameSite/토큰) 대비
+
+### Phase 3 — 테스트 전환
+- [ ] 9. `test_mock_driver.py`(Service/Repository 단위)는 **수정 없이 통과** 확인 → 회귀 기준선
+- [ ] 10. `test_integration.py`를 REST 버전으로 복제 — HTML 파싱 대신 JSON·상태 코드(201/204/404/422) 검증
+- [ ] 11. SSR·REST 병행 기간에는 두 테스트 모두 CI에서 실행
+
+### Phase 4 — SSR 제거 및 정리
+- [ ] 12. 프론트 전환 완료 후 SSR 라우터와 `templates/` 삭제
+- [ ] 13. `jinja2`(및 파일 업로드 미사용 시 `python-multipart`) 의존성 제거, `requirements.txt` 갱신
+- [ ] 14. README 실행법·아키텍처 다이어그램을 REST 기준으로 갱신
+- [ ] 15. 최종 스모크 테스트 — `/docs` 정상 노출, 전체 CRUD JSON 흐름, CORS preflight(OPTIONS) 응답 확인
