@@ -8,6 +8,7 @@
 <div class="memo-form">
     <h2 style="margin-bottom: 1.5rem; color: #007bff;">새 메모 작성</h2>
     
+    <!-- method="post": 등록은 서버 상태를 변경하는 작업이므로 GET이 아닌 POST 사용. 성공 시 303 리다이렉트(PRG)로 새로고침 중복 제출 방지 -->
     <form action="/memos/new" method="post">
         <div class="form-group">
             <label for="title">메모 제목</label>

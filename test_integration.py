@@ -74,12 +74,25 @@ def run_tests() -> None:
     check("등록: POST 후 303 리다이렉트(PRG)", status == 303, f"got {status}")
     check("등록: 리다이렉트 타겟이 목록(/memos)", location == "/memos")
 
+    # 2-1. [5차 평가 #3 보완] 303 수신 후 브라우저의 GET 재요청 동작을 명시적으로 검증 (PRG 완결성)
+    #  - follow_redirect=True 로 요청하면 urllib이 브라우저처럼 303의 Location으로 GET 재요청을 수행함
+    #  - 최종 응답이 200(HTML 렌더링)이고, 재요청이 GET이므로 등록이 중복 수행되지 않아야 함
+    before_ids = set(re.findall(r"/memos/(\d+)", request("GET", "/memos")[1]))
+    status, html, _ = request("POST", "/memos/new",
+                              {"title": "PRG검증 제목", "content": "PRG검증 내용"}, follow_redirect=True)
+    check("PRG 재요청: 303 추적 후 최종 200 + 목록 HTML 수신 (브라우저 GET 재요청 시뮬레이션)",
+          status == 200 and "PRG검증 제목" in html)
+    after_ids = set(re.findall(r"/memos/(\d+)", request("GET", "/memos")[1]))
+    check("PRG 재요청: 리다이렉트 추적 과정에서 등록이 정확히 1건만 수행됨 (중복 제출 없음)",
+          len(after_ids - before_ids) == 1, f"new_ids={after_ids - before_ids}")
+
     # 3. 목록 조회 및 생성된 메모 ID 추출
     status, html, _ = request("GET", "/memos")
     check("목록: GET /memos 200 응답 및 데이터 노출", status == 200 and "통합테스트 제목" in html)
     ids = re.findall(r"/memos/(\d+)", html)
     check("목록: 상세 링크 존재", len(ids) > 0)
-    memo_id = ids[0]
+    # 목록은 id 내림차순 정렬이므로, 첫 번째로 등록한 '통합테스트' 메모는 가장 작은 id
+    memo_id = min(ids, key=int)
 
     # 4. 상세 조회 (전체 필드 노출)
     status, html, _ = request("GET", f"/memos/{memo_id}")
