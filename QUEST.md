@@ -11,6 +11,32 @@
 
 ---
 
+## 🎯 미션 소개
+
+FastAPI + Jinja2 + SQLAlchemy로 CRUD 게시판형 웹 서비스를 만듭니다. 글쓰기, 목록, 상세, 수정, 삭제 기능을 계층 구조(Router → Service → Repository → Model)로 구현합니다.
+
+---
+
+## 🎓 학습 목표
+
+이 과제를 완료한 뒤, 다음을 설명할 수 있어야 한다:
+
+1. FastAPI로 RESTful 라우터를 설계할 수 있다
+2. SQLAlchemy로 데이터 모델을 정의하고 CRUD를 구현할 수 있다
+3. Router/Service/Repository/Model 계층 분리를 설명할 수 있다
+4. Jinja2 템플릿으로 서버 사이드 렌더링을 구현할 수 있다
+
+---
+
+## 📦 최종 결과물
+
+1. FastAPI 웹 서비스 (CRUD 게시판)
+2. 계층 분리 구조 (routers/services/repositories/models)
+3. Jinja2 템플릿 (홈/목록/상세/작성/수정)
+4. README (실행 방법, 아키텍처)
+
+---
+
 ## 🛠️ 개발 환경
 
 ### 6\. 개발 환경
