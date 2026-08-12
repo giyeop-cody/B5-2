@@ -11,6 +11,27 @@
 | **필수 여부** | ✅ 필수 |
 | **과제 번호** | 185013 |
 
+
+## 🎯 프로젝트 개요
+
+FastAPI + Jinja2 + SQLAlchemy로 CRUD 게시판형 웹 서비스를 만듭니다. 글쓰기, 목록, 상세, 수정, 삭제 기능을 계층 구조(Router → Service → Repository → Model)로 구현합니다.
+
+## 🎓 학습 목표
+
+이 과제를 완료한 뒤, 다음을 설명할 수 있어야 한다:
+
+1. FastAPI로 RESTful 라우터를 설계할 수 있다
+2. SQLAlchemy로 데이터 모델을 정의하고 CRUD를 구현할 수 있다
+3. Router/Service/Repository/Model 계층 분리를 설명할 수 있다
+4. Jinja2 템플릿으로 서버 사이드 렌더링을 구현할 수 있다
+
+## ⚠️ 제약 사항
+
+- fastapi, uvicorn, sqlalchemy, jinja2, python-multipart 범위 내에서만 사용
+- 라우터, 서비스, 저장소, 모델 코드는 역할에 맞게 분리
+- 로그인/권한/인증, 모델 간 관계(연관관계)는 구현하지 않음 (다음 미션)
+- Pydantic Schema로 요청/응답 모델 분리 권장
+
 본 프로젝트는 `FastAPI`와 `SQLAlchemy`, 그리고 `Jinja2` 템플릿 엔진을 활용하여 단일 도메인(Memo)의 생성, 목록 조회, 단건 상세 조회, 수정, 삭제(CRUD) 기능을 완벽히 구현한 현대적 웹 서비스 애플리케이션입니다.
 
 > ⚠️ **설치 문제 발생 시:** `pip install -r requirements.txt` 실패 시 먼저 `pip install --upgrade pip` 후 재시도하고, `python3 --version`으로 Python 3.10 이상인지 확인하세요. (상세: §3 사전 점검 체크리스트)
